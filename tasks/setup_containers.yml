@@ -1,0 +1,108 @@
+---
+- name: Get index of container
+  set_fact: 
+    host_index: "{% for groupname in groups %}{% if inventory_hostname in groups[groupname] and groupname != 'jvms' and groupname != 'all' and groupname != 'ungrouped' %}{% for host in groups[groupname] %}{% if host == inventory_hostname %}{{ loop.index0|int }}{% endif %}{% endfor %}{% endif %}{% endfor %}" 
+
+- name: Debug Host Index
+  debug:
+    msg: "{{ host_index }}"
+
+- name: Remove any existing docker containers
+  shell: "for i in $(docker ps -a | grep -v CONTAINER|awk '{print $1}'); do docker rm -f $i; done"
+  delegate_to: localhost
+  when: host_index|int == 0
+
+- name: Remove redundant docker networks
+  shell: "docker network prune -f"
+  delegate_to: localhost
+  when: host_index|int == 0
+
+- name: Create Docker Network
+  shell: "docker network create --subnet={{ docker_subnet }}/{{ docker_cidr }} {{ docker_subnet_name }}"
+  delegate_to: localhost
+  when: host_index|int == 0
+
+- name: Check if nexus container is running
+  shell: "docker ps --filter status=running |grep '{{ nexus_container_name }}'"
+  register: check_if_nexus_running
+  failed_when: false
+  changed_when: false
+  ignore_errors: yes
+  delegate_to: localhost
+  when: host_index|int == 0
+
+#  - name: Pull Nexus 
+#    shell: "docker pull '{{ nexus_container_name }}:latest'"
+#    when: check_if_nexus_running.rc != 0
+
+- name: Set Nexus IP
+  set_fact: nexus_ip="{{ docker_subnet | regex_replace('(^.*\.).*$', '\\1') }}20"
+
+- name: Launch Nexus container
+  shell: "docker run --network {{ docker_subnet_name }} --ip {{ nexus_ip }} -dit -p8081:8081 '{{ nexus_container_name }}'"
+  delegate_to: localhost
+  register: setup_nexus
+  when: (host_index|int == 0) and (check_if_nexus_running.rc|int != 0)
+
+- name: Pause while Nexus container starts
+  wait_for: 
+    port: 8081
+    delay: 100
+  delegate_to: localhost
+  when: host_index|int == 0
+ 
+- name: Create nexus oss repos json file
+  template: 
+    src: "../templates/insert_oss_repository.j2" 
+    dest: "/tmp/{{ item.name }}-insert_oss_repository.json"
+  with_items: "{{ nexus_repos }}"
+  delegate_to: localhost
+  when: (host_index|int == 0) and (setup_nexus is defined)
+
+- name: Create nexus repos using json file
+  shell: >
+    curl -i -H "Accept: application/json" -H "Content-Type: application/json" -X POST -d "@/tmp/{{ item.name }}-insert_oss_repository.json" -u admin:admin123 http://localhost:8081/nexus/service/local/repositories
+  with_items: "{{ nexus_repos }}"
+  delegate_to: localhost
+  when: (host_index|int == 0) and (setup_nexus is defined)
+
+- name: Copy files to /tmp
+  copy:
+    src: "{{ playbook_dir }}/../files/{{ item.filename }}"
+    dest: "/tmp/{{ item.filename }}"
+  with_items: "{{ nexus_files }}"
+  delegate_to: localhost
+  when: (host_index|int == 0) and (setup_nexus is defined)
+
+- name: Load Files into Nexus
+  shell: >
+    curl -v -F r={{ item.repository }} -F hasPom=false -F e={{ item.ext }} -F g={{ item.group_id }} -F a={{ item.artifact_id }} -F v={{ item.version }} -F p={{ item.ext }} -F file=@/tmp/{{ item.filename }} -u admin:admin123 http://localhost:8081/nexus/service/local/artifact/maven/content
+  with_items: "{{ nexus_files }}"
+  delegate_to: localhost
+  when: (host_index|int == 0) and (setup_nexus is defined)
+
+- name: set port facts
+  set_fact:
+    my_app_http_port: "{{ app_http_port|int + host_index|int }}"
+    my_app_https_port: "{{ app_https_port|int + host_index|int }}"
+    adminagent_http_port: "{{ adminagent_http_port|int + host_index|int }}" 
+
+- name: Check if container has already been created
+  shell: "docker ps -a | grep '{{ was_container_name }}' | grep '{{ ansible_ssh_port }}->22/tcp'"
+  delegate_to: localhost
+  changed_when: false
+  failed_when: false
+  ignore_errors: yes
+  register: check_if_container_exists
+
+- name: Debug check_if_container_exists
+  debug:
+    msg: "{{ check_if_container_exists }}"
+
+- name: Set Container IP
+  set_fact: container_ip="{{ docker_subnet | regex_replace('(^.*\.).*$', '\\1') }}{{ host_index|int + 100 }}"
+
+- name: Setup Container
+  shell: "docker run --network {{ docker_subnet_name }} --ip {{ container_ip }} -dit -p {{ my_app_http_port }}:9060 -p {{ ansible_ssh_port }}:22 -p {{ my_app_https_port }}:9080 -p {{ adminagent_http_port }}:9061 {{ was_container_name }} {{ envname|default('DEV') }} {{ host_index|int + 1 }} {{ app_name|default('DCKR') }}"
+  delegate_to: localhost
+  when: check_if_container_exists.rc|int == 1

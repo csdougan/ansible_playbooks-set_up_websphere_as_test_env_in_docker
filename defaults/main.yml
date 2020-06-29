@@ -1,0 +1,28 @@
+---
+docker_subnet: "172.18.0.0"
+docker_cidr: "24"
+docker_subnet_name: "ContainerNet"
+nexus_container_name: "sonatype/nexus"
+nexus_repos:
+  - { name: "earfiles", id: "earfiles" }
+  - { name: "A0520-WebSphere-Application-Server", id: "A0520-WebSphere-Application-Server"}
+  - { name: "A0308-POS-VOD-Releases", id: "A0308-POS-VOD-Releases"}
+  - { name: "A0200-POS-VBS-Releases", id: "A0200-POS-VBS-Releases"}
+nexus_files:
+  - { filename: "VCMBasketCalculation-334.inc4.ear", repository: "A0308-POS-VOD-Releases", group_id: "wtr_paw", artifact_id: "VCMBasketCalculation", version: "334.Inc4", ext: "ear"}
+  - { filename: "ESIAuditService-334.inc4.ear", repository: "A0308-POS-VOD-Releases", group_id: "wtr_paw", artifact_id: "ESIAuditService", version: "334.Inc4", ext: "ear"}
+  - { filename: "ESIRTIService-334.inc4.ehcache.ear", repository: "A0308-POS-VOD-Releases", group_id: "wtr_paw", artifact_id: "ESIRTIService", version: "334.Inc4.ehcache", ext: "ear"}
+  - { filename: "backoffice-334.inc5.ear", repository: "A0200-POS-VBS-Releases", group_id: "wtr_pos", artifact_id: "backoffice", version: "334.inc5", ext: "ear"}
+  - { filename: "beanstore-334.inc5.ptf7.ear", repository: "A0200-POS-VBS-Releases", group_id: "wtr_pos", artifact_id: "beanstore", version: "334.inc5.ptf7", ext: "ear"}
+  - { filename: "datadistribution-334.inc5.ear", repository: "A0200-POS-VBS-Releases", group_id: "wtr_pos", artifact_id: "datadistribution", version: "334.inc5", ext: "ear"}
+  - { filename: "estatemanagement-334.inc5.ear", repository: "A0200-POS-VBS-Releases", group_id: "wtr_pos", artifact_id: "estatemanagement", version: "334.inc5", ext: "ear"}
+  - { filename: "reportingetl-334.inc5.ear", repository: "A0200-POS-VBS-Releases", group_id: "wtr_pos", artifact_id: "reportingetl", version: "334.inc5", ext: "ear"}
+  - { filename: "smartstoreetl-334.inc5.ptf1.ear", repository: "A0200-POS-VBS-Releases", group_id: "wtr_pos", artifact_id: "reportingetl", version: "334.inc5.ptf1", ext: "ear"}
+  - { filename: "JDBC6-11g.jar", repository: "A0520-WebSphere-Application-Server", group_id: "Oracle", artifact_id: "JDBC6", version: "11g", ext: "jar"}
+  - { filename: "Server-Internal.jar", repository: "A0520-WebSphere-Application-Server", group_id: "Waitrose", artifact_id: "Server", version: "Internal", ext: "jar"}
+ssh_port: 2222
+app_http_port: 19060
+app_https_port: 19080
+adminagent_http_port: 9061
+was_container_name: "cdougan/wasdev_with_profile"
+...
